@@ -1,5 +1,5 @@
 {
-  "name": "resolutemq",
+  "name": "resolute",
   "version": "0.0.1",
   "description": "Reliable messaging in Node.js",
   "main": "index.js",
