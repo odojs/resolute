@@ -1,4 +1,8 @@
-send = require '../src/send'
+# Async zeromq publish
+# Use with receive
+# Will retry until it gets a response
+
+send = require './send'
 
 module.exports = (options) ->
   options ?= {}
@@ -10,34 +14,46 @@ module.exports = (options) ->
   messages = {}
 
   # health
-  tick = null
-  check = ->
+  intervaltick = null
+  retrytimedoutmessages = ->
     now = process.hrtime()
     console.log 'RETRYING'
     # messages to retry
+    messagestoretry = []
     for msgid, message of messages
       continue unless message.started < now + timeout
+      messagestoretry.push message
+    # recreate zeromq sockets so we don't flood the buffer with dups
+    channelstorecreate = []
+    for message in messagestoretry
+      for name, completed of message.channels
+        continue if completed
+        channelstorecreate.push channels[name]
+    for channel in channelstorecreate
+      channel.socket.close()
+    for message in messagestoretry
       message.started = now
       for name, completed of message.channels
         continue if completed
         channel = channels[name]
         channel.socket.send msgid, message.data
   startifstopped = ->
-    return if tick?
-    tick = setInterval check, interval
+    return if intervaltick?
+    intervaltick = setInterval retrytimedoutmessages, interval
   closechanneliffinshed = (name, channel) ->
     if Object.keys(channel.messages).length is 0
       channel.socket.close()
   removemessageifcomplete = (msgid, message) ->
     for name, completed of message.channels
       return unless completed
+    callback() for callback in messages[msgid].callbacks
     delete messages[msgid]
     console.log "FIN #{msgid}"
     stoptickiffinished()
   stoptickiffinished = ->
     if Object.keys(messages).length is 0
-      clearInterval tick
-      tick = null
+      clearInterval intervaltick
+      intervaltick = null
 
   connect: (name, addresses) ->
     channels[name] =
@@ -52,11 +68,14 @@ module.exports = (options) ->
           removemessageifcomplete msgid, message
       messages: {}
 
-  publish: (msgid, data, names) ->
+  publish: (msgid, data, names, oncomplete) ->
+    callbacks = []
+    callbacks.push oncomplete if oncomplete?
     names = [names] unless names instanceof Array
     messages[msgid] =
       started: process.hrtime()
       data: data
+      callbacks: callbacks
       channels: {}
     for name in names
       messages[msgid].channels[name] = no

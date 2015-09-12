@@ -1,3 +1,7 @@
+# Async zeromq message send
+# Use with receive
+# Does not gurantee anything
+
 zmq = require 'zmq'
 
 module.exports = (addresses, onreceipt) ->

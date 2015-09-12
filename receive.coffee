@@ -1,3 +1,7 @@
+# Async zeromq message receive
+# Use with send
+# Does not gurantee anything
+
 zmq = require 'zmq'
 async = require 'odo-async'
 
