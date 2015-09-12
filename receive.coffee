@@ -22,3 +22,8 @@ module.exports = (addresses, onmessage) ->
   async.series tasks, ->
     socket.on 'message', (id, _, msgid, data) ->
       onmessage data, -> socket.send [id, '', msgid]
+
+  close: ->
+    if socket?
+      socket.close()
+      socket = null

@@ -55,7 +55,10 @@ module.exports = (options) ->
       clearInterval intervaltick
       intervaltick = null
 
-  connect: (name, addresses) ->
+  register: (name, addresses) ->
+    if channels[name]?
+      channels[name].socket.connect addresses
+      return
     channels[name] =
       socket: send addresses, (msgid) ->
         channel = channels[name]

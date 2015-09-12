@@ -103,7 +103,11 @@ module.exports = function(options) {
     }
   };
   return {
-    connect: function(name, addresses) {
+    register: function(name, addresses) {
+      if (channels[name] != null) {
+        channels[name].socket.connect(addresses);
+        return;
+      }
       return channels[name] = {
         socket: send(addresses, function(msgid) {
           var channel, message;

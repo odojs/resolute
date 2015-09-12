@@ -27,11 +27,19 @@ module.exports = function(addresses, onmessage) {
     addr = addresses[i];
     fn(addr);
   }
-  return async.series(tasks, function() {
+  async.series(tasks, function() {
     return socket.on('message', function(id, _, msgid, data) {
       return onmessage(data, function() {
         return socket.send([id, '', msgid]);
       });
     });
   });
+  return {
+    close: function() {
+      if (socket != null) {
+        socket.close();
+        return socket = null;
+      }
+    }
+  };
 };

@@ -4,19 +4,26 @@ var zmq;
 zmq = require('zmq');
 
 module.exports = function(addresses, onreceipt) {
-  var socket, startifstopped;
+  var _addresses, addr, i, len, socket, startifstopped;
   if (!(addresses instanceof Array)) {
     addresses = [addresses];
   }
+  _addresses = {};
+  for (i = 0, len = addresses.length; i < len; i++) {
+    addr = addresses[i];
+    _addresses[addr] = true;
+  }
   socket = null;
   startifstopped = function() {
-    var addr, i, len;
+    var j, len1, ref;
     if (socket != null) {
       return;
     }
     socket = zmq.socket('dealer');
-    for (i = 0, len = addresses.length; i < len; i++) {
-      addr = addresses[i];
+    ref = Object.keys(_addresses);
+    for (j = 0, len1 = ref.length; j < len1; j++) {
+      addr = ref[j];
+      console.log("ZMQ CONNECTING " + addr);
       socket.connect(addr);
       console.log("ZMQ CONNECTED " + addr);
     }
@@ -32,16 +39,57 @@ module.exports = function(addresses, onreceipt) {
       console.log("ZMQ SENDING " + msgid);
       return socket.send(['', msgid, data]);
     },
+    connect: function(addresses) {
+      var j, k, len1, len2, results, toconnect;
+      if (!(addresses instanceof Array)) {
+        addresses = [addresses];
+      }
+      toconnect = [];
+      for (j = 0, len1 = addresses.length; j < len1; j++) {
+        addr = addresses[j];
+        if (_addresses[addr] != null) {
+          continue;
+        }
+        _addresses[addr] = true;
+        toconnect.push(addr);
+      }
+      if (socket == null) {
+        return;
+      }
+      results = [];
+      for (k = 0, len2 = toconnect.length; k < len2; k++) {
+        addr = toconnect[k];
+        socket.connect(addr);
+        results.push(console.log("ZMQ CONNECTED " + addr));
+      }
+      return results;
+    },
+    disconnect: function(addresses) {
+      var j, len1, results;
+      if (!(addresses instanceof Array)) {
+        addresses = [addresses];
+      }
+      results = [];
+      for (j = 0, len1 = addresses.length; j < len1; j++) {
+        addr = addresses[j];
+        if (_addresses[addr] == null) {
+          continue;
+        }
+        delete _addresses[addr];
+        results.push(socket.disconnect(addr));
+      }
+      return results;
+    },
     close: function() {
-      var addr, i, len, results;
+      var j, len1, results;
       if (socket == null) {
         return;
       }
       socket.close();
       socket = null;
       results = [];
-      for (i = 0, len = addresses.length; i < len; i++) {
-        addr = addresses[i];
+      for (j = 0, len1 = addresses.length; j < len1; j++) {
+        addr = addresses[j];
         results.push(console.log("ZMQ DISCONNECTED " + addr));
       }
       return results;
