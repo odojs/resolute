@@ -140,7 +140,7 @@ module.exports = function(options) {
         var message;
         message = JSON.stringify(envelope);
         return publisher.publish(envelope.id, message, envelope.addresses, function() {
-          return incoming.clear(envelope.id);
+          return outgoing.clear(envelope.id);
         });
       })(envelope));
     }
@@ -158,6 +158,7 @@ module.exports = function(options) {
     outgoing.set(msgid, envelope);
     message = JSON.stringify(envelope);
     return publisher.publish(msgid, message, addresses, function() {
+      console.log("Clearing " + msgid);
       outgoing.clear(msgid);
       return cb();
     });

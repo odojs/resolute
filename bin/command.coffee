@@ -35,8 +35,38 @@ shulz = require 'shulz'
 fs = require 'fs'
 
 datadir = process.cwd()
-if args.length is 1
-  if args[0] is 'unlock'
+
+waserror = no
+subscriptions_path = resolve datadir, './subscriptions.shulz'
+unless fs.existsSync subscriptions_path
+  console.error "Cannot open #{subscriptions_path}"
+  waserror = yes
+outgoing_path = resolve datadir, './outgoing.shulz'
+unless fs.existsSync outgoing_path
+  console.error "Cannot open #{outgoing_path}"
+  waserror = yes
+incoming_path = resolve datadir, './incoming.shulz'
+unless fs.existsSync incoming_path
+  console.error "Cannot open #{incoming_path}"
+  waserror = yes
+process.exit -1 if waserror
+
+subscriptions = shulz.read subscriptions_path
+outgoing = shulz.read outgoing_path
+incoming = shulz.read incoming_path
+uniqueaddresses = {}
+for _, addresses of subscriptions
+  for address, _ of addresses
+    uniqueaddresses[address] = yes
+
+cmds =
+  status: ->
+    console.log "#{Object.keys(subscriptions).length} keys"
+    console.log "#{Object.keys(subscriptions).length} subscribers"
+    console.log "#{Object.keys(outgoing).length} outgoing"
+    console.log "#{Object.keys(incoming).length} incoming"
+
+  unlock: ->
     pathstodelete = [
       resolve datadir, './subscriptions.shulz.lock'
       resolve datadir, './outgoing.shulz.lock'
@@ -46,45 +76,42 @@ if args.length is 1
       if fs.existsSync path
         console.log "Removed #{path}"
         fs.unlinkSync path
-    process.exit 0
-  datadir = resolve datadir, args[0]
 
-waserror = no
+  keys: ->
+    for key in Object.keys subscriptions
+      console.log key
 
-subscriptions_path = resolve datadir, './subscriptions.shulz'
-unless fs.existsSync subscriptions_path
-  console.error "Cannot open #{subscriptions_path}"
-  waserror = yes
+  subscribers: ->
+    for key in Object.keys uniqueaddresses
+      console.log key
 
-outgoing_path = resolve datadir, './outgoing.shulz'
-unless fs.existsSync outgoing_path
-  console.error "Cannot open #{outgoing_path}"
-  waserror = yes
+  outgoing: ->
+    for key, value of outgoing
+      console.log "#{key} => #{JSON.stringify value}"
 
-incoming_path = resolve datadir, './incoming.shulz'
-unless fs.existsSync incoming_path
-  console.error "Cannot open #{incoming_path}"
-  waserror = yes
+  incoming: ->
+    for key, value of incoming
+      console.log "#{key} => #{JSON.stringify value}"
 
-process.exit -1 if waserror
+  '-h': ->
+    console.log usage
 
-subscriptions = shulz.read subscriptions_path
-outgoing = shulz.read outgoing_path
-incoming = shulz.read incoming_path
+  '-v': ->
+    pjson = require '../package.json'
+    console.log pjson.version
 
-console.log '# Keys'
-for key in Object.keys subscriptions
-  console.log "- #{key}"
-console.log()
-
-uniqueaddresses = {}
-for _, addresses of subscriptions
-  for address, _ of addresses
-    uniqueaddresses[address] = yes
-console.log '# Subscribers'
-for key in Object.keys uniqueaddresses
-  console.log "- #{key}"
-console.log()
-
-console.log "# #{Object.keys(outgoing).length} outgoing"
-console.log "# #{Object.keys(incoming).length} incoming"
+command = if args.length is 0
+    'status'
+  else
+    args.shift()
+try
+  return cmds[command]() if cmds[command]?
+catch err
+  if err instanceof ShulzMapBusy
+    console.error err.message
+    console.error()
+  else
+    console.error 'Caught exception: '
+    console.error err.stack
+  process.exit 1
+usage_error "#{command} is not a known shulz command"

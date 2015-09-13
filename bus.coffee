@@ -86,7 +86,7 @@ module.exports = (options) ->
       do (envelope) ->
         message = JSON.stringify envelope
         publisher.publish envelope.id, message, envelope.addresses, ->
-          incoming.clear envelope.id
+          outgoing.clear envelope.id
 
   send = (addresses, msgid, keys, data, cb) ->
     envelope =
@@ -99,6 +99,7 @@ module.exports = (options) ->
     message = JSON.stringify envelope
     # TODO: make this repeatable, trottleable, parallelisable, etc.
     publisher.publish msgid, message, addresses, ->
+      console.log "Clearing #{msgid}"
       outgoing.clear msgid
       cb()
 
