@@ -146,7 +146,7 @@ module.exports = function(options) {
     }
     return results;
   });
-  send = function(addresses, msgid, keys, data, cb) {
+  send = function(addresses, msgid, keys, data) {
     var message;
     envelope = {
       id: msgid,
@@ -158,13 +158,11 @@ module.exports = function(options) {
     outgoing.set(msgid, envelope);
     message = JSON.stringify(envelope);
     return publisher.publish(msgid, message, addresses, function() {
-      console.log("Clearing " + msgid);
-      outgoing.clear(msgid);
-      return cb();
+      return outgoing.clear(msgid);
     });
   };
   return {
-    publish: function(keys, data, cb) {
+    publish: function(keys, data) {
       var j, key, len1, msgid, subs;
       if (!(keys instanceof Array)) {
         keys = [keys];
@@ -184,16 +182,16 @@ module.exports = function(options) {
       addresses = Object.keys(addresses);
       msgid = cuid();
       if (addresses.length === 0) {
-        if (cb != null) {
-          async.delay(cb);
-        }
         return msgid;
       }
-      send(addresses, msgid, keys, data, function() {
-        if (cb != null) {
-          return async.delay(cb);
-        }
-      });
+      send(addresses, msgid, keys, data);
+      return msgid;
+    },
+    send: function(key, data, address) {
+      var msgid;
+      publisher.register(address, address);
+      msgid = cuid();
+      send([address], msgid, [key], data);
       return msgid;
     },
     subscribe: function(address, keys, cb) {

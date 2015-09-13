@@ -88,7 +88,7 @@ module.exports = (options) ->
         publisher.publish envelope.id, message, envelope.addresses, ->
           outgoing.clear envelope.id
 
-  send = (addresses, msgid, keys, data, cb) ->
+  send = (addresses, msgid, keys, data) ->
     envelope =
       id: msgid
       keys: keys
@@ -99,11 +99,9 @@ module.exports = (options) ->
     message = JSON.stringify envelope
     # TODO: make this repeatable, trottleable, parallelisable, etc.
     publisher.publish msgid, message, addresses, ->
-      console.log "Clearing #{msgid}"
       outgoing.clear msgid
-      cb()
 
-  publish: (keys, data, cb) ->
+  publish: (keys, data) ->
     keys = [keys] unless keys instanceof Array
     addresses = {}
     for key in keys
@@ -113,11 +111,14 @@ module.exports = (options) ->
         addresses[address] = yes
     addresses = Object.keys addresses
     msgid = cuid()
-    if addresses.length is 0
-      async.delay cb if cb?
-      return msgid
-    send addresses, msgid, keys, data, ->
-      async.delay cb if cb?
+    return msgid if addresses.length is 0
+    send addresses, msgid, keys, data
+    msgid
+
+  send: (key, data, address) ->
+    publisher.register address, address
+    msgid = cuid()
+    send [address], msgid, [key], data
     msgid
 
   subscribe: (address, keys, cb) ->

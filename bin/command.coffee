@@ -1,11 +1,15 @@
 usage = """
-Usage: resolute [datadir]
-       resolute unlock
+Usage: resolute [command]
 
 Show the status of a resolute data directory
 
 Commands:
+  status                  Show an overview
   unlock                  Unlock all maps
+  keys                    Print a list of subscription keys
+  subscribers             Print a list of unique subscribers
+  incoming                Print all incoming messages
+  outgoing                Print all outgoing messages
 
 Options:
   -h                      Display this usage information
