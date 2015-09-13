@@ -30,33 +30,6 @@ Shulz creates lock files along side the hashmaps to warn against more than once 
 
 If a servicebus process was not shut down correctly the lock files need to be removed before it can start again. If you are sure the process has failed run `resolute unlock` in the `datadir`. Once the lock files have been removed the process can be restarted. In an unlocked state stores can be administered to remove or update messages, adjust subscribers or purge and start the servicebus from scratch.
 
-## Example scenario
-You have two servers - a webserver hosting a website and a backend server that sends emails. In our scenario users sign up on the website and welcome emails are sent from the backend server to greet the new users. A business evaluation has indicated that users should still be able to sign up even if emails are not able to be sent. The welcome emails can queue until emails can be sent. Additionally the email service should stay running during a website outage as it also sends important emails from other systems.
-
-Logically there may be several independent actions initiated whenever a user signs up to the website. We may want to add more actions for each user signup in the future. Architecturally it is easier if the webserver has no knowledge of the steps occuring after a user has signed up and the subscribing services register their interest in the `signup event`.
-
-We require some sort of coordination between the webserver and the email service. Many message buses require a third server to broker the messages between webserver and email service. However now there is a third server that requires additional uptime guarantees. A more robust solution involves the webserver talking directly to the backend server. This pattern scales well and does not require a central broker that requires high uptime.
-
-## Web -> Outgoing
-Each step in the process needs a save state in case of power failure or other issue. We will start with the signup submit button. This button sends a post request to the Node.js webserver which may be running something like [expressjs](http://expressjs.com/). The hander for the post may update a database and perform other actions like validation. At some point it will want to publish a notification to anyone who is interested that a new user has signed up. This calls `resolute.publish` which writes synchronously to the harddrive and returns immediately. The expressjs handler can return a success message and the user is able to continue on with their actions. The webserver can crash any time after the publish has been written and the publish will be retried when the servicebus is restarted.
-
-## Email Service -> Web
-The email service knows it needs to receive messages from the website. It has an event key and the tcp host and port address of the website servicebus socket. To receive messages from the website the email service needs a servicebus. Each instance of resolute includes sending and receiving functionality. The email service sends a message using the normal resolute protocol to the website providing a return address. This message asks the website to subscribe the email service to all `signup events`. If the website servicebus is down the subscribtion message waits in the outgoing queue until it can be successfully delivered. The email service will only stop trying to send the subscription message once it has a successful reply from the website. Once subscribed the website knows every `signup event` needs to be sent to the email service.
-
-## Outgoing
-In a separate async thread the servicebus looks at the outgoing messages. For each message it looks at the subscriptions and works out how many destinations this message needs to be sent to. The message is only removed from the store when it has been successfully received by all subscribers. In a failure situation a message could be sent to three out of four subscribers before crashing. When restarting the message will attempt to send to the three subscribers again, along with re-attempting to send to the fourth subscriber. So the message is only removed once a reply is heard from all subscribers. The message will continue to attempt to send to any subscriber who is down, queuing the message.
-
-## Incoming
-When the email service receives the message it is written to disk and an acknowledgement is sent immediately. Shortening the time to acknowledgement helps the sending servicebus continue with other things.
-
-## Incoming -> Processing
-In a separate async thread the servicebus picks up messages on the incoming store and dispatches them to an internal hub. All subscribed methods are required to callback before the message is removed from the incoming store. If an error occurs or the process crashes the message will still be on the incoming store. In our scenario the sign up message is dispatched to the email handler which generates an email and connects to an smtp server to send the email. Once the smtp server has responded with success the handler calls done and the message is removed from the incoming queue.
-
-
-## Future
-- Dead letter queue for messages that fail repeatedly
-- Max concurrency count for sending and processing. Currently outgoing messages and incoming messages are processed as fast as they can.
-
 
 # Publisher
 ```js
@@ -111,7 +84,6 @@ process.on('SIGINT', function() {
 
 
 # Command line tool
-
 ```console
 Usage: resolute [command]
 
@@ -130,3 +102,32 @@ Options:
   -v                      Display the version number
 
 ```
+
+## Example scenario
+You have two servers - a webserver hosting a website and a backend server that sends emails. In our scenario users sign up on the website and welcome emails are sent from the backend server to greet the new users. A business evaluation has indicated that users should still be able to sign up even if emails are not able to be sent. The welcome emails can queue until emails can be sent. Additionally the email service should stay running during a website outage as it also sends important emails from other systems.
+
+Logically there may be several independent actions initiated whenever a user signs up to the website. We may want to add more actions for each user signup in the future. Architecturally it is easier if the webserver has no knowledge of the steps occuring after a user has signed up and the subscribing services register their interest in the `signup event`.
+
+We require some sort of coordination between the webserver and the email service. Many message buses require a third server to broker the messages between webserver and email service. However now there is a third server that requires additional uptime guarantees. A more robust solution involves the webserver talking directly to the backend server. This pattern scales well and does not require a central broker that requires high uptime.
+
+## Web -> Outgoing
+Each step in the process needs a save state in case of power failure or other issue. We will start with the signup submit button. This button sends a post request to the Node.js webserver which may be running something like [expressjs](http://expressjs.com/). The hander for the post may update a database and perform other actions like validation. At some point it will want to publish a notification to anyone who is interested that a new user has signed up. This calls `resolute.publish` which writes synchronously to the harddrive and returns immediately. The expressjs handler can return a success message and the user is able to continue on with their actions. The webserver can crash any time after the publish has been written and the publish will be retried when the servicebus is restarted.
+
+## Email Service -> Web
+The email service knows it needs to receive messages from the website. It has an event key and the tcp host and port address of the website servicebus socket. To receive messages from the website the email service needs a servicebus. Each instance of resolute includes sending and receiving functionality. The email service sends a message using the normal resolute protocol to the website providing a return address. This message asks the website to subscribe the email service to all `signup events`. If the website servicebus is down the subscribtion message waits in the outgoing queue until it can be successfully delivered. The email service will only stop trying to send the subscription message once it has a successful reply from the website. Once subscribed the website knows every `signup event` needs to be sent to the email service.
+
+## Outgoing
+In the website, in an async thread the servicebus looks at the outgoing messages. For each message it looks at the subscriptions and works out how many destinations this message needs to be sent to. The message is only removed from the store when it has been successfully received by all subscribers. In a failure situation a message could be sent to three out of four subscribers before crashing. When restarting the message will attempt to send to the three subscribers again, along with re-attempting to send to the fourth subscriber. So the message is only removed once a reply is heard from all subscribers. The message will continue to attempt to send to any subscriber who is down, queuing the message.
+
+This may change in the future to track each message independently.
+
+## Incoming
+When the email service receives the message it is written to disk and an acknowledgement is sent immediately. Shortening the time to acknowledgement helps the sending servicebus continue with other things.
+
+## Incoming -> Processing
+On the bacend server, in a separate async thread the servicebus picks up messages on the incoming store and dispatches them to an internal hub. All subscribed methods are required to callback before the message is removed from the incoming store. If an error occurs or the process crashes the message will still be on the incoming store. In our scenario the sign up message is dispatched to the email handler which generates an email and connects to an smtp server to send the email. Once the smtp server has responded with success the handler calls done and the message is removed from the incoming queue.
+
+
+## Future
+- Dead letter queue for messages that fail repeatedly
+- Max concurrency count for sending and processing. Currently outgoing messages and incoming messages are processed as fast as they can.
