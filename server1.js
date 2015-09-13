@@ -9,6 +9,7 @@ bus = Bus({
 });
 
 setInterval(function() {
+  console.log('CLOUDY');
   return bus.publish('weather update', 'CLOUDY');
 }, 1000);
 

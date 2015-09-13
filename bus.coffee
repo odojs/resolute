@@ -2,33 +2,18 @@ cuid = require 'cuid'
 async = require 'odo-async'
 Publish = require './publish'
 Receive = require './receive'
-Shulz = require 'shulz'
+shulz = require 'shulz'
 Hub = require 'odo-hub'
+resolve = require('path').resolve
+mkdirp = require 'mkdirp'
 
 module.exports = (options) ->
   advertise = options.advertise
   advertise ?= options.bind
   bind = options.bind
+  datadir = resolve process.cwd(), options.datadir
 
-  # internal state, eventually shulz
-  subscriptions = {}
-  _subscribe = (key, address) ->
-    subscriptions[key] = {} if !subscriptions[key]?
-    subscriptions[key][address] = yes
-    publisher.register address, address
-  _unsubscribe = (key, address) ->
-    return if !subscriptions[key]?
-    delete subscriptions[key][address]
-
-  hub = Hub.create()
-  hub.every '_subscribe', (m, cb) ->
-    for key in m.keys
-      _subscribe key, m.address
-    cb()
-  hub.every '_unsubscribe', (m, cb) ->
-    for key in m.keys
-      _unsubscribe key, m.address
-    cb()
+  mkdirp.sync datadir
 
   publisher = Publish()
   receiver = Receive bind, (envelope, done) ->
@@ -39,6 +24,34 @@ module.exports = (options) ->
         tasks.push (cb) ->
           hub.emit key, envelope.data, cb
     async.parallel tasks, done
+
+  # persistent subscriber store
+  subscriptions = shulz.open resolve datadir, './subscriptions.shulz'
+  for _, addresses of subscriptions.all()
+    for address, _ of addresses
+      publisher.register address, address
+
+  _subscribe = (key, address) ->
+    subs = subscriptions.get key
+    subs ?= {}
+    subs[address] = yes
+    subscriptions.set key, subs
+    publisher.register address, address
+  _unsubscribe = (key, address) ->
+    subs = subscriptions.get key
+    subs ?= {}
+    delete subs[address]
+    subscriptions.set key, subs
+
+  hub = Hub.create()
+  hub.every '_subscribe', (m, cb) ->
+    for key in m.keys
+      _subscribe key, m.address
+    cb()
+  hub.every '_unsubscribe', (m, cb) ->
+    for key in m.keys
+      _unsubscribe key, m.address
+    cb()
 
   send = (addresses, msgid, keys, data, cb) ->
     envelope =
@@ -53,8 +66,9 @@ module.exports = (options) ->
     keys = [keys] unless keys instanceof Array
     addresses = {}
     for key in keys
-      continue if !subscriptions[key]?
-      for address, _ of subscriptions[key]
+      subs = subscriptions.get key
+      continue if !subs?
+      for address, _ of subs
         addresses[address] = yes
     addresses = Object.keys addresses
     msgid = cuid()
@@ -92,16 +106,11 @@ module.exports = (options) ->
       do (key) ->
         msgid = cuid()
         unsubscribemsgids.push msgid
-        envelope =
-          id: msgid
-          keys: ['_unsubscribe']
-          sent: new Date()
-          data:
-            keys: keys
-            address: advertise
-        message = JSON.stringify envelope
+        data =
+          keys: keys
+          address: advertise
         tasks.push (cb) ->
-          publisher.publish msgid, message, address, cb
+          send address, msgid, ['_unsubscribe'], data, cb
     async.parallel tasks, ->
       async.delay cb if cb?
     unsubscribemsgids
@@ -111,3 +120,4 @@ module.exports = (options) ->
   close: ->
     publisher.close()
     receiver.close()
+    subscriptions.close()
