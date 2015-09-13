@@ -17,7 +17,7 @@ module.exports = (options) ->
   intervaltick = null
   retrytimedoutmessages = ->
     now = process.hrtime()
-    console.log 'RETRYING'
+    #console.log 'RETRYING'
     # messages to retry
     messagestoretry = {}
     for msgid, message of messages
@@ -48,7 +48,7 @@ module.exports = (options) ->
       return unless completed
     callback() for callback in messages[msgid].callbacks
     delete messages[msgid]
-    console.log "FIN #{msgid}"
+    #console.log "FIN #{msgid}"
     stoptickiffinished()
   stoptickiffinished = ->
     if Object.keys(messages).length is 0

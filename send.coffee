@@ -18,15 +18,15 @@ module.exports = (addresses, onreceipt) ->
     socket = zmq.socket 'dealer'
     for addr in Object.keys _addresses
       socket.connect addr
-      console.log "ZMQ CONNECTED #{addr}"
+      #console.log "ZMQ CONNECTED #{addr}"
     socket.on 'message', (_, msgid) ->
       msgid = msgid.toString()
-      console.log "ZMQ SENT #{msgid}"
+      #console.log "ZMQ SENT #{msgid}"
       onreceipt msgid
 
   send: (msgid, data) ->
     startifstopped()
-    console.log "ZMQ SENDING #{msgid}"
+    #console.log "ZMQ SENDING #{msgid}"
     socket.send ['', msgid, data]
   connect: (addresses) ->
     unless addresses instanceof Array
@@ -39,7 +39,7 @@ module.exports = (addresses, onreceipt) ->
     return if !socket?
     for addr in toconnect
       socket.connect addr
-      console.log "ZMQ CONNECTED #{addr}"
+      #console.log "ZMQ CONNECTED #{addr}"
   disconnect: (addresses) ->
     unless addresses instanceof Array
       addresses = [addresses]
@@ -51,5 +51,5 @@ module.exports = (addresses, onreceipt) ->
     return if !socket?
     socket.close()
     socket = null
-    for addr in addresses
-      console.log "ZMQ DISCONNECTED #{addr}"
+    # for addr in addresses
+    #   console.log "ZMQ DISCONNECTED #{addr}"

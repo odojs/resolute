@@ -16,7 +16,7 @@ module.exports = (addresses, onmessage) ->
       tasks.push (cb) ->
         socket.bind addr, (err) ->
           throw err if err?
-          console.log "ZMQ BIND #{addr}"
+          #console.log "ZMQ BIND #{addr}"
           cb()
 
   async.series tasks, ->

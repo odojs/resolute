@@ -21,7 +21,6 @@ module.exports = function(options) {
   retrytimedoutmessages = function() {
     var channel, channelstorecreate, completed, i, len, message, messagestoretry, msgid, name, now, ref, results;
     now = process.hrtime();
-    console.log('RETRYING');
     messagestoretry = {};
     for (msgid in messages) {
       message = messages[msgid];
@@ -93,7 +92,6 @@ module.exports = function(options) {
       callback();
     }
     delete messages[msgid];
-    console.log("FIN " + msgid);
     return stoptickiffinished();
   };
   stoptickiffinished = function() {

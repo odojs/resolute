@@ -24,18 +24,15 @@ module.exports = function(addresses, onreceipt) {
     for (j = 0, len1 = ref.length; j < len1; j++) {
       addr = ref[j];
       socket.connect(addr);
-      console.log("ZMQ CONNECTED " + addr);
     }
     return socket.on('message', function(_, msgid) {
       msgid = msgid.toString();
-      console.log("ZMQ SENT " + msgid);
       return onreceipt(msgid);
     });
   };
   return {
     send: function(msgid, data) {
       startifstopped();
-      console.log("ZMQ SENDING " + msgid);
       return socket.send(['', msgid, data]);
     },
     connect: function(addresses) {
@@ -58,8 +55,7 @@ module.exports = function(addresses, onreceipt) {
       results = [];
       for (k = 0, len2 = toconnect.length; k < len2; k++) {
         addr = toconnect[k];
-        socket.connect(addr);
-        results.push(console.log("ZMQ CONNECTED " + addr));
+        results.push(socket.connect(addr));
       }
       return results;
     },
@@ -80,18 +76,11 @@ module.exports = function(addresses, onreceipt) {
       return results;
     },
     close: function() {
-      var j, len1, results;
       if (socket == null) {
         return;
       }
       socket.close();
-      socket = null;
-      results = [];
-      for (j = 0, len1 = addresses.length; j < len1; j++) {
-        addr = addresses[j];
-        results.push(console.log("ZMQ DISCONNECTED " + addr));
-      }
-      return results;
+      return socket = null;
     }
   };
 };

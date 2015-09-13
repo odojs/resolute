@@ -146,7 +146,7 @@ module.exports = function(options) {
     }
     return results;
   });
-  send = function(addresses, msgid, keys, data) {
+  send = function(addresses, msgid, keys, data, cb) {
     var message;
     envelope = {
       id: msgid,
@@ -158,7 +158,10 @@ module.exports = function(options) {
     outgoing.set(msgid, envelope);
     message = JSON.stringify(envelope);
     return publisher.publish(msgid, message, addresses, function() {
-      return outgoing.clear(msgid);
+      outgoing.clear(msgid);
+      if (cb != null) {
+        return async.delay(cb);
+      }
     });
   };
   return {

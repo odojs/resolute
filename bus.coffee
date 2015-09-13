@@ -88,7 +88,7 @@ module.exports = (options) ->
         publisher.publish envelope.id, message, envelope.addresses, ->
           outgoing.clear envelope.id
 
-  send = (addresses, msgid, keys, data) ->
+  send = (addresses, msgid, keys, data, cb) ->
     envelope =
       id: msgid
       keys: keys
@@ -100,6 +100,7 @@ module.exports = (options) ->
     # TODO: make this repeatable, trottleable, parallelisable, etc.
     publisher.publish msgid, message, addresses, ->
       outgoing.clear msgid
+      async.delay cb if cb?
 
   publish: (keys, data) ->
     keys = [keys] unless keys instanceof Array

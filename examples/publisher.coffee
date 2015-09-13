@@ -1,4 +1,4 @@
-Bus = require './bus'
+Bus = require '../bus'
 bus = Bus
   bind: process.argv[2]
   datadir: process.argv[3]

@@ -18,7 +18,6 @@ module.exports = function(addresses, onmessage) {
         if (err != null) {
           throw err;
         }
-        console.log("ZMQ BIND " + addr);
         return cb();
       });
     });
