@@ -10,7 +10,7 @@ bus = Bus({
 
 bus.subscribe('tcp://127.0.0.1:12345', 'weather update');
 
-bus.hub.every('weather update', function(p, cb) {
+bus.every('weather update', function(p, cb) {
   console.log(p);
   return cb();
 });
@@ -19,9 +19,12 @@ seensigint = false;
 
 process.on('SIGINT', function() {
   if (seensigint) {
+    console.log('Exiting without confirming unsubscription');
+    bus.close();
     process.exit(0);
   }
   seensigint = true;
+  console.log('Attempting to unsubscribe');
   return bus.unsubscribe('tcp://127.0.0.1:12345', 'weather update', function() {
     bus.close();
     return process.exit(0);

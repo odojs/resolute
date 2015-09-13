@@ -15,15 +15,36 @@ module.exports = (options) ->
 
   mkdirp.sync datadir
 
+  hub = Hub.create()
+
   publisher = Publish()
-  receiver = Receive bind, (envelope, done) ->
-    envelope = JSON.parse envelope.toString()
+  incoming = shulz.open resolve datadir, './incoming.shulz'
+
+  exec = (envelope, cb) ->
     tasks = []
     for key in envelope.keys
       do (key) ->
         tasks.push (cb) ->
           hub.emit key, envelope.data, cb
-    async.parallel tasks, done
+    async.parallel tasks, cb
+
+  # replay incoming messages
+  replayincoming = []
+  for _, envelope of incoming.all()
+    replayincoming.push envelope
+  async.delay ->
+    for envelope in replayincoming
+      do (envelope) ->
+        exec envelope, ->
+          incoming.clear envelope.id
+  receiver = Receive bind, (envelope, done) ->
+    envelope = JSON.parse envelope.toString()
+    incoming.set envelope.id, envelope
+    # TODO: make this repeatable, trottleable, parallelisable, etc.
+    async.delay ->
+      exec envelope, ->
+        incoming.clear envelope.id
+    done()
 
   # persistent subscriber store
   subscriptions = shulz.open resolve datadir, './subscriptions.shulz'
@@ -43,7 +64,6 @@ module.exports = (options) ->
     delete subs[address]
     subscriptions.set key, subs
 
-  hub = Hub.create()
   hub.every '_subscribe', (m, cb) ->
     for key in m.keys
       _subscribe key, m.address
@@ -53,14 +73,34 @@ module.exports = (options) ->
       _unsubscribe key, m.address
     cb()
 
+  outgoing = shulz.open resolve datadir, './outgoing.shulz'
+
+  # replay outgoing messages
+  replayoutgoing = []
+  for _, envelope of outgoing.all()
+    replayoutgoing.push envelope
+    for address in envelope.addresses
+      publisher.register address, address
+  async.delay ->
+    for envelope in replayoutgoing
+      do (envelope) ->
+        message = JSON.stringify envelope
+        publisher.publish envelope.id, message, envelope.addresses, ->
+          incoming.clear envelope.id
+
   send = (addresses, msgid, keys, data, cb) ->
     envelope =
       id: msgid
       keys: keys
+      addresses: addresses
       sent: new Date()
       data: data
+    outgoing.set msgid, envelope
     message = JSON.stringify envelope
-    publisher.publish msgid, message, addresses, cb
+    # TODO: make this repeatable, trottleable, parallelisable, etc.
+    publisher.publish msgid, message, addresses, ->
+      outgoing.clear msgid
+      cb()
 
   publish: (keys, data, cb) ->
     keys = [keys] unless keys instanceof Array
@@ -115,9 +155,15 @@ module.exports = (options) ->
       async.delay cb if cb?
     unsubscribemsgids
 
-  hub: hub
-
   close: ->
     publisher.close()
     receiver.close()
     subscriptions.close()
+    incoming.close()
+    outgoing.close()
+
+  # surface some hub methods
+  every: hub.every
+  once: hub.once
+  any: hub.any
+  all: hub.all

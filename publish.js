@@ -19,20 +19,20 @@ module.exports = function(options) {
   messages = {};
   intervaltick = null;
   retrytimedoutmessages = function() {
-    var channel, channelstorecreate, completed, i, j, k, len, len1, len2, message, messagestoretry, msgid, name, now, ref, results;
+    var channel, channelstorecreate, completed, i, len, message, messagestoretry, msgid, name, now, ref, results;
     now = process.hrtime();
     console.log('RETRYING');
-    messagestoretry = [];
+    messagestoretry = {};
     for (msgid in messages) {
       message = messages[msgid];
       if (!(message.started < now + timeout)) {
         continue;
       }
-      messagestoretry.push(message);
+      messagestoretry[msgid] = message;
     }
     channelstorecreate = [];
-    for (i = 0, len = messagestoretry.length; i < len; i++) {
-      message = messagestoretry[i];
+    for (msgid in messagestoretry) {
+      message = messagestoretry[msgid];
       ref = message.channels;
       for (name in ref) {
         completed = ref[name];
@@ -42,13 +42,13 @@ module.exports = function(options) {
         channelstorecreate.push(channels[name]);
       }
     }
-    for (j = 0, len1 = channelstorecreate.length; j < len1; j++) {
-      channel = channelstorecreate[j];
+    for (i = 0, len = channelstorecreate.length; i < len; i++) {
+      channel = channelstorecreate[i];
       channel.socket.close();
     }
     results = [];
-    for (k = 0, len2 = messagestoretry.length; k < len2; k++) {
-      message = messagestoretry[k];
+    for (msgid in messagestoretry) {
+      message = messagestoretry[msgid];
       message.started = now;
       results.push((function() {
         var ref1, results1;
@@ -74,7 +74,6 @@ module.exports = function(options) {
     return intervaltick = setInterval(retrytimedoutmessages, interval);
   };
   closechanneliffinshed = function(name, channel) {
-    return;
     if (Object.keys(channel.messages).length === 0) {
       return channel.socket.close();
     }

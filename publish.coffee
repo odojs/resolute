@@ -19,19 +19,19 @@ module.exports = (options) ->
     now = process.hrtime()
     console.log 'RETRYING'
     # messages to retry
-    messagestoretry = []
+    messagestoretry = {}
     for msgid, message of messages
       continue unless message.started < now + timeout
-      messagestoretry.push message
+      messagestoretry[msgid] = message
     # recreate zeromq sockets so we don't flood the buffer with dups
     channelstorecreate = []
-    for message in messagestoretry
+    for msgid, message of messagestoretry
       for name, completed of message.channels
         continue if completed
         channelstorecreate.push channels[name]
     for channel in channelstorecreate
       channel.socket.close()
-    for message in messagestoretry
+    for msgid, message of messagestoretry
       message.started = now
       for name, completed of message.channels
         continue if completed
@@ -41,8 +41,6 @@ module.exports = (options) ->
     return if intervaltick?
     intervaltick = setInterval retrytimedoutmessages, interval
   closechanneliffinshed = (name, channel) ->
-    # keep them open!
-    return
     if Object.keys(channel.messages).length is 0
       channel.socket.close()
   removemessageifcomplete = (msgid, message) ->

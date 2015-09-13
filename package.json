@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "Reliable messaging in Node.js",
   "main": "index.js",
+  "bin": {
+    "resolute": "bin/resolute"
+  },
   "scripts": {
     "test": "mocha test/*.js --reporter spec"
   },

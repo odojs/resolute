@@ -5,14 +5,18 @@ bus = Bus
 
 bus.subscribe 'tcp://127.0.0.1:12345', 'weather update'
 
-bus.hub.every 'weather update', (p, cb) ->
+bus.every 'weather update', (p, cb) ->
   console.log p
   cb()
 
 seensigint = no
 process.on 'SIGINT', ->
-  process.exit 0 if seensigint
+  if seensigint
+    console.log 'Exiting without confirming unsubscription'
+    bus.close()
+    process.exit 0
   seensigint = yes
+  console.log 'Attempting to unsubscribe'
   bus.unsubscribe 'tcp://127.0.0.1:12345', 'weather update', ->
     bus.close()
     process.exit 0

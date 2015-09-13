@@ -18,7 +18,7 @@ resolve = require('path').resolve;
 mkdirp = require('mkdirp');
 
 module.exports = function(options) {
-  var _, _subscribe, _unsubscribe, address, addresses, advertise, bind, datadir, hub, publisher, receiver, ref, send, subscriptions;
+  var _, _subscribe, _unsubscribe, address, addresses, advertise, bind, datadir, envelope, exec, hub, i, incoming, len, outgoing, publisher, receiver, ref, ref1, ref2, ref3, replayincoming, replayoutgoing, send, subscriptions;
   advertise = options.advertise;
   if (advertise == null) {
     advertise = options.bind;
@@ -26,10 +26,11 @@ module.exports = function(options) {
   bind = options.bind;
   datadir = resolve(process.cwd(), options.datadir);
   mkdirp.sync(datadir);
+  hub = Hub.create();
   publisher = Publish();
-  receiver = Receive(bind, function(envelope, done) {
+  incoming = shulz.open(resolve(datadir, './incoming.shulz'));
+  exec = function(envelope, cb) {
     var fn, i, key, len, ref, tasks;
-    envelope = JSON.parse(envelope.toString());
     tasks = [];
     ref = envelope.keys;
     fn = function(key) {
@@ -41,12 +42,41 @@ module.exports = function(options) {
       key = ref[i];
       fn(key);
     }
-    return async.parallel(tasks, done);
+    return async.parallel(tasks, cb);
+  };
+  replayincoming = [];
+  ref = incoming.all();
+  for (_ in ref) {
+    envelope = ref[_];
+    replayincoming.push(envelope);
+  }
+  async.delay(function() {
+    var i, len, results;
+    results = [];
+    for (i = 0, len = replayincoming.length; i < len; i++) {
+      envelope = replayincoming[i];
+      results.push((function(envelope) {
+        return exec(envelope, function() {
+          return incoming.clear(envelope.id);
+        });
+      })(envelope));
+    }
+    return results;
+  });
+  receiver = Receive(bind, function(envelope, done) {
+    envelope = JSON.parse(envelope.toString());
+    incoming.set(envelope.id, envelope);
+    async.delay(function() {
+      return exec(envelope, function() {
+        return incoming.clear(envelope.id);
+      });
+    });
+    return done();
   });
   subscriptions = shulz.open(resolve(datadir, './subscriptions.shulz'));
-  ref = subscriptions.all();
-  for (_ in ref) {
-    addresses = ref[_];
+  ref1 = subscriptions.all();
+  for (_ in ref1) {
+    addresses = ref1[_];
     for (address in addresses) {
       _ = addresses[address];
       publisher.register(address, address);
@@ -71,45 +101,76 @@ module.exports = function(options) {
     delete subs[address];
     return subscriptions.set(key, subs);
   };
-  hub = Hub.create();
   hub.every('_subscribe', function(m, cb) {
-    var i, key, len, ref1;
-    ref1 = m.keys;
-    for (i = 0, len = ref1.length; i < len; i++) {
-      key = ref1[i];
+    var i, key, len, ref2;
+    ref2 = m.keys;
+    for (i = 0, len = ref2.length; i < len; i++) {
+      key = ref2[i];
       _subscribe(key, m.address);
     }
     return cb();
   });
   hub.every('_unsubscribe', function(m, cb) {
-    var i, key, len, ref1;
-    ref1 = m.keys;
-    for (i = 0, len = ref1.length; i < len; i++) {
-      key = ref1[i];
+    var i, key, len, ref2;
+    ref2 = m.keys;
+    for (i = 0, len = ref2.length; i < len; i++) {
+      key = ref2[i];
       _unsubscribe(key, m.address);
     }
     return cb();
   });
+  outgoing = shulz.open(resolve(datadir, './outgoing.shulz'));
+  replayoutgoing = [];
+  ref2 = outgoing.all();
+  for (_ in ref2) {
+    envelope = ref2[_];
+    replayoutgoing.push(envelope);
+    ref3 = envelope.addresses;
+    for (i = 0, len = ref3.length; i < len; i++) {
+      address = ref3[i];
+      publisher.register(address, address);
+    }
+  }
+  async.delay(function() {
+    var j, len1, results;
+    results = [];
+    for (j = 0, len1 = replayoutgoing.length; j < len1; j++) {
+      envelope = replayoutgoing[j];
+      results.push((function(envelope) {
+        var message;
+        message = JSON.stringify(envelope);
+        return publisher.publish(envelope.id, message, envelope.addresses, function() {
+          return incoming.clear(envelope.id);
+        });
+      })(envelope));
+    }
+    return results;
+  });
   send = function(addresses, msgid, keys, data, cb) {
-    var envelope, message;
+    var message;
     envelope = {
       id: msgid,
       keys: keys,
+      addresses: addresses,
       sent: new Date(),
       data: data
     };
+    outgoing.set(msgid, envelope);
     message = JSON.stringify(envelope);
-    return publisher.publish(msgid, message, addresses, cb);
+    return publisher.publish(msgid, message, addresses, function() {
+      outgoing.clear(msgid);
+      return cb();
+    });
   };
   return {
     publish: function(keys, data, cb) {
-      var i, key, len, msgid, subs;
+      var j, key, len1, msgid, subs;
       if (!(keys instanceof Array)) {
         keys = [keys];
       }
       addresses = {};
-      for (i = 0, len = keys.length; i < len; i++) {
-        key = keys[i];
+      for (j = 0, len1 = keys.length; j < len1; j++) {
+        key = keys[j];
         subs = subscriptions.get(key);
         if (subs == null) {
           continue;
@@ -135,7 +196,7 @@ module.exports = function(options) {
       return msgid;
     },
     subscribe: function(address, keys, cb) {
-      var fn, i, key, len, subscribemsgids, tasks;
+      var fn, j, key, len1, subscribemsgids, tasks;
       if (!(keys instanceof Array)) {
         keys = [keys];
       }
@@ -154,8 +215,8 @@ module.exports = function(options) {
           return send(address, msgid, ['_subscribe'], data, cb);
         });
       };
-      for (i = 0, len = keys.length; i < len; i++) {
-        key = keys[i];
+      for (j = 0, len1 = keys.length; j < len1; j++) {
+        key = keys[j];
         fn(key);
       }
       async.parallel(tasks, function() {
@@ -166,7 +227,7 @@ module.exports = function(options) {
       return subscribemsgids;
     },
     unsubscribe: function(address, keys, cb) {
-      var fn, i, key, len, tasks, unsubscribemsgids;
+      var fn, j, key, len1, tasks, unsubscribemsgids;
       if (!(keys instanceof Array)) {
         keys = [keys];
       }
@@ -185,8 +246,8 @@ module.exports = function(options) {
           return send(address, msgid, ['_unsubscribe'], data, cb);
         });
       };
-      for (i = 0, len = keys.length; i < len; i++) {
-        key = keys[i];
+      for (j = 0, len1 = keys.length; j < len1; j++) {
+        key = keys[j];
         fn(key);
       }
       async.parallel(tasks, function() {
@@ -196,11 +257,16 @@ module.exports = function(options) {
       });
       return unsubscribemsgids;
     },
-    hub: hub,
     close: function() {
       publisher.close();
       receiver.close();
-      return subscriptions.close();
-    }
+      subscriptions.close();
+      incoming.close();
+      return outgoing.close();
+    },
+    every: hub.every,
+    once: hub.once,
+    any: hub.any,
+    all: hub.all
   };
 };
