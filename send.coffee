@@ -17,7 +17,6 @@ module.exports = (addresses, onreceipt) ->
     return if socket?
     socket = zmq.socket 'dealer'
     for addr in Object.keys _addresses
-      console.log "ZMQ CONNECTING #{addr}"
       socket.connect addr
       console.log "ZMQ CONNECTED #{addr}"
     socket.on 'message', (_, msgid) ->

@@ -41,6 +41,8 @@ module.exports = (options) ->
     return if intervaltick?
     intervaltick = setInterval retrytimedoutmessages, interval
   closechanneliffinshed = (name, channel) ->
+    # keep them open!
+    return
     if Object.keys(channel.messages).length is 0
       channel.socket.close()
   removemessageifcomplete = (msgid, message) ->

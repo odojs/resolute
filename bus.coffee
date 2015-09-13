@@ -5,10 +5,10 @@ Receive = require './receive'
 Shulz = require 'shulz'
 Hub = require 'odo-hub'
 
-module.exports = (publicaddress, addresses) ->
-  bindaddresses = [publicaddress]
-  if addresses?
-    bindaddresses = bindaddresses.concat addresses
+module.exports = (options) ->
+  advertise = options.advertise
+  advertise ?= options.bind
+  bind = options.bind
 
   # internal state, eventually shulz
   subscriptions = {}
@@ -31,7 +31,7 @@ module.exports = (publicaddress, addresses) ->
     cb()
 
   publisher = Publish()
-  receiver = Receive bindaddresses, (envelope, done) ->
+  receiver = Receive bind, (envelope, done) ->
     envelope = JSON.parse envelope.toString()
     tasks = []
     for key in envelope.keys
@@ -40,8 +40,14 @@ module.exports = (publicaddress, addresses) ->
           hub.emit key, envelope.data, cb
     async.parallel tasks, done
 
-  register: (name, addresses) ->
-    publisher.register name, addresses
+  send = (addresses, msgid, keys, data, cb) ->
+    envelope =
+      id: msgid
+      keys: keys
+      sent: new Date()
+      data: data
+    message = JSON.stringify envelope
+    publisher.publish msgid, message, addresses, cb
 
   publish: (keys, data, cb) ->
     keys = [keys] unless keys instanceof Array
@@ -55,13 +61,7 @@ module.exports = (publicaddress, addresses) ->
     if addresses.length is 0
       async.delay cb if cb?
       return msgid
-    envelope =
-      id: msgid
-      keys: keys
-      sent: new Date()
-      data: data
-    message = JSON.stringify envelope
-    publisher.publish msgid, message, addresses, ->
+    send addresses, msgid, keys, data, ->
       async.delay cb if cb?
     msgid
 
@@ -74,16 +74,11 @@ module.exports = (publicaddress, addresses) ->
       do (key) ->
         msgid = cuid()
         subscribemsgids.push msgid
-        envelope =
-          id: msgid
-          keys: ['_subscribe']
-          sent: new Date()
-          data:
-            keys: keys
-            address: publicaddress
-        message = JSON.stringify envelope
+        data =
+          keys: keys
+          address: advertise
         tasks.push (cb) ->
-          publisher.publish msgid, message, address, cb
+          send address, msgid, ['_subscribe'], data, cb
     async.parallel tasks, ->
       async.delay cb if cb?
     subscribemsgids
@@ -103,7 +98,7 @@ module.exports = (publicaddress, addresses) ->
           sent: new Date()
           data:
             keys: keys
-            address: publicaddress
+            address: advertise
         message = JSON.stringify envelope
         tasks.push (cb) ->
           publisher.publish msgid, message, address, cb

@@ -23,7 +23,6 @@ module.exports = function(addresses, onreceipt) {
     ref = Object.keys(_addresses);
     for (j = 0, len1 = ref.length; j < len1; j++) {
       addr = ref[j];
-      console.log("ZMQ CONNECTING " + addr);
       socket.connect(addr);
       console.log("ZMQ CONNECTED " + addr);
     }

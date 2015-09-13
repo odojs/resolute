@@ -74,6 +74,7 @@ module.exports = function(options) {
     return intervaltick = setInterval(retrytimedoutmessages, interval);
   };
   closechanneliffinshed = function(name, channel) {
+    return;
     if (Object.keys(channel.messages).length === 0) {
       return channel.socket.close();
     }

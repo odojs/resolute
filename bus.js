@@ -13,12 +13,13 @@ Shulz = require('shulz');
 
 Hub = require('odo-hub');
 
-module.exports = function(publicaddress, addresses) {
-  var _subscribe, _unsubscribe, bindaddresses, hub, publisher, receiver, subscriptions;
-  bindaddresses = [publicaddress];
-  if (addresses != null) {
-    bindaddresses = bindaddresses.concat(addresses);
+module.exports = function(options) {
+  var _subscribe, _unsubscribe, advertise, bind, hub, publisher, receiver, send, subscriptions;
+  advertise = options.advertise;
+  if (advertise == null) {
+    advertise = options.bind;
   }
+  bind = options.bind;
   subscriptions = {};
   _subscribe = function(key, address) {
     if (subscriptions[key] == null) {
@@ -53,7 +54,7 @@ module.exports = function(publicaddress, addresses) {
     return cb();
   });
   publisher = Publish();
-  receiver = Receive(bindaddresses, function(envelope, done) {
+  receiver = Receive(bind, function(envelope, done) {
     var fn, i, key, len, ref, tasks;
     envelope = JSON.parse(envelope.toString());
     tasks = [];
@@ -69,12 +70,20 @@ module.exports = function(publicaddress, addresses) {
     }
     return async.parallel(tasks, done);
   });
+  send = function(addresses, msgid, keys, data, cb) {
+    var envelope, message;
+    envelope = {
+      id: msgid,
+      keys: keys,
+      sent: new Date(),
+      data: data
+    };
+    message = JSON.stringify(envelope);
+    return publisher.publish(msgid, message, addresses, cb);
+  };
   return {
-    register: function(name, addresses) {
-      return publisher.register(name, addresses);
-    },
     publish: function(keys, data, cb) {
-      var _, address, envelope, i, key, len, message, msgid, ref;
+      var _, address, addresses, i, key, len, msgid, ref;
       if (!(keys instanceof Array)) {
         keys = [keys];
       }
@@ -98,14 +107,7 @@ module.exports = function(publicaddress, addresses) {
         }
         return msgid;
       }
-      envelope = {
-        id: msgid,
-        keys: keys,
-        sent: new Date(),
-        data: data
-      };
-      message = JSON.stringify(envelope);
-      publisher.publish(msgid, message, addresses, function() {
+      send(addresses, msgid, keys, data, function() {
         if (cb != null) {
           return async.delay(cb);
         }
@@ -121,21 +123,15 @@ module.exports = function(publicaddress, addresses) {
       subscribemsgids = [];
       publisher.register(address, address);
       fn = function(key) {
-        var envelope, message, msgid;
+        var data, msgid;
         msgid = cuid();
         subscribemsgids.push(msgid);
-        envelope = {
-          id: msgid,
-          keys: ['_subscribe'],
-          sent: new Date(),
-          data: {
-            keys: keys,
-            address: publicaddress
-          }
+        data = {
+          keys: keys,
+          address: advertise
         };
-        message = JSON.stringify(envelope);
         return tasks.push(function(cb) {
-          return publisher.publish(msgid, message, address, cb);
+          return send(address, msgid, ['_subscribe'], data, cb);
         });
       };
       for (i = 0, len = keys.length; i < len; i++) {
@@ -167,7 +163,7 @@ module.exports = function(publicaddress, addresses) {
           sent: new Date(),
           data: {
             keys: keys,
-            address: publicaddress
+            address: advertise
           }
         };
         message = JSON.stringify(envelope);

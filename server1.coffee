@@ -1,11 +1,12 @@
 Bus = require './bus'
-
-addresses = process.argv.slice 2
-publicaddress = addresses[0]
-addresses = addresses.slice 1
-
-bus = Bus publicaddress, addresses
+bus = Bus
+  bind: process.argv[2]
+  datadir: process.argv[3]
 
 setInterval ->
   bus.publish 'weather update', 'CLOUDY'
 , 1000
+
+process.on 'SIGINT', ->
+  bus.close()
+  process.exit 0
