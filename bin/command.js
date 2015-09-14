@@ -79,7 +79,7 @@ for (_ in subscriptions) {
 cmds = {
   status: function() {
     console.log((Object.keys(subscriptions).length) + " keys");
-    console.log((Object.keys(subscriptions).length) + " subscribers");
+    console.log((Object.keys(uniqueaddresses).length) + " subscribers");
     console.log((Object.keys(outgoing).length) + " outgoing");
     return console.log((Object.keys(incoming).length) + " incoming");
   },

@@ -66,7 +66,7 @@ for _, addresses of subscriptions
 cmds =
   status: ->
     console.log "#{Object.keys(subscriptions).length} keys"
-    console.log "#{Object.keys(subscriptions).length} subscribers"
+    console.log "#{Object.keys(uniqueaddresses).length} subscribers"
     console.log "#{Object.keys(outgoing).length} outgoing"
     console.log "#{Object.keys(incoming).length} incoming"
 
