@@ -16,7 +16,8 @@ resolve = require('path').resolve;
 mkdirp = require('mkdirp');
 
 module.exports = function(options) {
-  var _, _ondrained, _onincomingempty, _onoutgoingempty, _removedestination, _subscribe, _unsubscribe, address, addresses, advertise, bind, datadir, envelope, exec, hub, i, incoming, len, outgoing, publisher, receiver, ref, ref1, ref2, ref3, replayincoming, replayoutgoing, send, subscriptions;
+  var _, _fin, _ondrained, _onincomingempty, _onoutgoingempty, _removedestination, _subscribe, _unsubscribe, address, addresses, advertise, bind, datadir, envelope, exec, hub, i, incoming, len, outgoing, publisher, receiver, ref, ref1, ref2, ref3, replayincoming, replayoutgoing, send, subscriptions;
+  _fin = false;
   advertise = options.advertise;
   if (advertise == null) {
     advertise = options.bind;
@@ -324,6 +325,10 @@ module.exports = function(options) {
       return _ondrained.push(cb);
     },
     close: function() {
+      if (_fin) {
+        return;
+      }
+      _fin = true;
       publisher.close();
       receiver.close();
       subscriptions.close();

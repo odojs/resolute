@@ -7,6 +7,7 @@ resolve = require('path').resolve
 mkdirp = require 'mkdirp'
 
 module.exports = (options) ->
+  _fin = no
   advertise = options.advertise
   advertise ?= options.bind
   bind = options.bind
@@ -187,6 +188,8 @@ module.exports = (options) ->
     _ondrained.push cb
 
   close: ->
+    return if _fin
+    _fin = yes
     publisher.close()
     receiver.close()
     subscriptions.close()
