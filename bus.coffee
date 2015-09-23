@@ -3,7 +3,6 @@ async = require 'odo-async'
 Publish = require './publish'
 Receive = require './receive'
 shulz = require 'shulz'
-Hub = require 'odo-hub'
 resolve = require('path').resolve
 mkdirp = require 'mkdirp'
 
@@ -11,15 +10,30 @@ module.exports = (options) ->
   advertise = options.advertise
   advertise ?= options.bind
   bind = options.bind
-  datadir = resolve process.cwd(), options.datadir
 
+  datadir = resolve process.cwd(), options.datadir
   mkdirp.sync datadir
 
-  hub = Hub.create()
+  incoming = options.incoming
+  incoming ?= shulz.open resolve datadir, './incoming.shulz'
+  outgoing = options.outgoing
+  outgoing ?= shulz.open resolve datadir, './outgoing.shulz'
+  subscriptions = options.subscriptions
+  subscriptions ?= shulz.open resolve datadir, './subscriptions.shulz'
+  hub = options.hub
+  hub ?= require 'odo-hub/parallel'
+
+  _ondrained = []
+  _onoutgoingempty = ->
+    return if incoming.length() isnt 0
+    cb() for cb in _ondrained
+    _ondrained = []
+  _onincomingempty = ->
+    return if outgoing.length() isnt 0
+    cb() for cb in _ondrained
+    _ondrained = []
 
   publisher = Publish()
-  incoming = shulz.open resolve datadir, './incoming.shulz'
-
   exec = (envelope, cb) ->
     tasks = []
     for key in envelope.keys
@@ -37,6 +51,7 @@ module.exports = (options) ->
       do (envelope) ->
         exec envelope, ->
           incoming.clear envelope.id
+          _onincomingempty() if incoming.length() is 0
   receiver = Receive bind, (envelope, done) ->
     envelope = JSON.parse envelope.toString()
     incoming.set envelope.id, envelope
@@ -44,10 +59,10 @@ module.exports = (options) ->
     async.delay ->
       exec envelope, ->
         incoming.clear envelope.id
+        _onincomingempty() if incoming.length() is 0
     done()
 
   # persistent subscriber store
-  subscriptions = shulz.open resolve datadir, './subscriptions.shulz'
   for _, addresses of subscriptions.all()
     for address, _ of addresses
       publisher.register address, address
@@ -63,6 +78,11 @@ module.exports = (options) ->
     subs ?= {}
     delete subs[address]
     subscriptions.set key, subs
+  _removedestination = (key, address) ->
+    for key, subs of subscriptions.all()
+      continue if !subs[address]?
+      delete subs[address]
+      subscriptions.set key, subs
 
   hub.every '_subscribe', (m, cb) ->
     for key in m.keys
@@ -72,8 +92,9 @@ module.exports = (options) ->
     for key in m.keys
       _unsubscribe key, m.address
     cb()
-
-  outgoing = shulz.open resolve datadir, './outgoing.shulz'
+  hub.every '_removedestination', (m, cb) ->
+    _removedestination m.address
+    cb()
 
   # replay outgoing messages
   replayoutgoing = []
@@ -87,6 +108,7 @@ module.exports = (options) ->
         message = JSON.stringify envelope
         publisher.publish envelope.id, message, envelope.addresses, ->
           outgoing.clear envelope.id
+          _onoutgoingempty() if outgoing.length() is 0
 
   send = (addresses, msgid, keys, data, cb) ->
     envelope =
@@ -100,6 +122,7 @@ module.exports = (options) ->
     # TODO: make this repeatable, trottleable, parallelisable, etc.
     publisher.publish msgid, message, addresses, ->
       outgoing.clear msgid
+      _onoutgoingempty() if outgoing.length() is 0
       async.delay cb if cb?
 
   publish: (keys, data) ->
@@ -122,9 +145,8 @@ module.exports = (options) ->
     send [address], msgid, [key], data
     msgid
 
-  subscribe: (address, keys, cb) ->
+  subscribe: (address, keys) ->
     keys = [keys] unless keys instanceof Array
-    tasks = []
     subscribemsgids = []
     publisher.register address, address
     for key in keys
@@ -134,15 +156,11 @@ module.exports = (options) ->
         data =
           keys: keys
           address: advertise
-        tasks.push (cb) ->
-          send address, msgid, ['_subscribe'], data, cb
-    async.parallel tasks, ->
-      async.delay cb if cb?
+        send address, msgid, ['_subscribe'], data
     subscribemsgids
 
-  unsubscribe: (address, keys, cb) ->
+  unsubscribe: (address, keys) ->
     keys = [keys] unless keys instanceof Array
-    tasks = []
     unsubscribemsgids = []
     publisher.register address, address
     for key in keys
@@ -152,11 +170,21 @@ module.exports = (options) ->
         data =
           keys: keys
           address: advertise
-        tasks.push (cb) ->
-          send address, msgid, ['_unsubscribe'], data, cb
-    async.parallel tasks, ->
-      async.delay cb if cb?
+        send address, msgid, ['_unsubscribe'], data
     unsubscribemsgids
+
+  removedestination: (address) ->
+    publisher.register address, address
+    msgid = cuid()
+    data = address: advertise
+    send address, msgid, ['_removedestination'], data
+    msgid
+
+  drain: (cb) ->
+    if incoming.length() is 0 and outgoing.length() is 0
+      async.delay cb
+      return
+    _ondrained.push cb
 
   close: ->
     publisher.close()
