@@ -3,17 +3,12 @@ module.exports = ->
   ref: (key, cb) ->
     if !refs[key]?
       refs[key] = 1
-      cb()
-      return yes
+      return cb()
     refs[key]++
-    no
   unref: (key, cb) ->
     if !refs[key]?
-      console.error "#{key} unref'd too much"
-      return null
+      return console.error "#{key} unref'd too much"
     refs[key]--
-    if refs[key] = 0
+    if refs[key] is 0
       delete refs[key]
       cb()
-      return yes
-    return no

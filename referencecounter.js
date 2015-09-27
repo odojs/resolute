@@ -6,24 +6,19 @@ module.exports = function() {
     ref: function(key, cb) {
       if (refs[key] == null) {
         refs[key] = 1;
-        cb();
-        return true;
+        return cb();
       }
-      refs[key]++;
-      return false;
+      return refs[key]++;
     },
     unref: function(key, cb) {
       if (refs[key] == null) {
-        console.error(key + " unref'd too much");
-        return null;
+        return console.error(key + " unref'd too much");
       }
       refs[key]--;
-      if (refs[key] = 0) {
+      if (refs[key] === 0) {
         delete refs[key];
-        cb();
-        return true;
+        return cb();
       }
-      return false;
     }
   };
 };

@@ -12,9 +12,9 @@ module.exports = function(bus, bindings) {
   refs = references();
   return {
     subscribe: function(key, cb) {
-      subscriptions[key] = true;
       return refs.ref(key, function() {
         var _, address, ref, results;
+        subscriptions[key] = true;
         if (bindings[key] == null) {
           return;
         }
@@ -28,9 +28,9 @@ module.exports = function(bus, bindings) {
       });
     },
     unsubscribe: function(key, cb) {
-      delete subscriptions[key];
       return refs.unref(key, function() {
         var _, address, ref, results;
+        delete subscriptions[key];
         if (bindings[key] == null) {
           return;
         }

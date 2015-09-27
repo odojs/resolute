@@ -5,14 +5,14 @@ module.exports = (bus, bindings) ->
   subscriptions = {}
   refs = references()
   subscribe: (key, cb) ->
-    subscriptions[key] = yes
     refs.ref key, ->
+      subscriptions[key] = yes
       return if !bindings[key]?
       for address, _ of bindings[key]
         bus.subscribe address, key
   unsubscribe: (key, cb) ->
-    delete subscriptions[key]
     refs.unref key, ->
+      delete subscriptions[key]
       return if !bindings[key]?
       for address, _ of bindings[key]
         bus.unsubscribe address, key

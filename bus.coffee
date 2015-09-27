@@ -6,6 +6,8 @@ shulz = require 'shulz'
 resolve = require('path').resolve
 mkdirp = require 'mkdirp'
 
+createhub = -> require('odo-hub/hub') require('odo-hub/dispatch_parallel')()
+
 module.exports = (options) ->
   _fin = no
   advertise = options.advertise
@@ -22,7 +24,9 @@ module.exports = (options) ->
   subscriptions = options.subscriptions
   subscriptions ?= shulz.open resolve datadir, './subscriptions.shulz'
   hub = options.hub
-  hub ?= require 'odo-hub/parallel'
+  hub ?= createhub()
+  rawhub = options.rawhub
+  rawhub ?= createhub()
 
   _ondrained = []
   _onoutgoingempty = ->
@@ -40,6 +44,7 @@ module.exports = (options) ->
     for key in envelope.keys
       do (key) ->
         tasks.push (cb) ->
+          rawhub.emit key, envelope, cb
           hub.emit key, envelope.data, cb
     async.parallel tasks, cb
 
@@ -187,6 +192,9 @@ module.exports = (options) ->
       return
     _ondrained.push cb
 
+  status: ->
+    "#{subscriptions.length()} subscribers, #{incoming.length()} incoming and #{outgoing.length()} outgoing"
+
   close: ->
     return if _fin
     _fin = yes
@@ -201,3 +209,6 @@ module.exports = (options) ->
   once: hub.once
   any: hub.any
   all: hub.all
+
+  hub: hub
+  raw: rawhub
